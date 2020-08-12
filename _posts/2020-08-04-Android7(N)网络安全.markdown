@@ -1,0 +1,161 @@
+---
+layout: post
+title:  "Android7(N)网络安全"
+description: Android7的网络安全机制，更方便。
+categories: 网络 android
+typora-root-url: ..
+---
+
+### 简单使用
+
+1. 在AndroidMainfest.xml文件中进行配置
+
+```xml
+<!-- networkSecurityConfig 配置指定xml文件 -->
+<application
+    ...
+    android:networkSecurityConfig="@xml/network_security_config">
+    <activity android:name=".MainActivity">
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
+    </activity>
+</application>
+```
+
+2. res/xml/network_security_config.xml设置
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<!--最外层的设置network-security-config-->
+<network-security-config>
+    <!-- 0个或1个base-config, 平台默认：信任系统证书 -->
+    <base-config cleartextTrafficPermitted="true" />
+    <!--任意数量的domain-config,并且可嵌套-->
+    <domain-config>
+        <domain includeSubdomains="true">example.com</domain>
+        <trust-anchors>
+            <!-- raw下证书是PEM格式或DER格式, certificates可以包含多个 -->
+            <certificates src="@raw/example"/>
+            <certificates  ... />
+        </trust-anchors>
+    </domain-config>
+    <!-- 0个或1个debug-overrides 需要配置android:debugable=true配合使用-->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="@raw/debug_cas"/>
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
+```
+
+3. 在Android7以上此配置生效，默认信任系统证书，在android6及一下默认信任系统证书和用户证书
+
+### 固定证书
+
+固定证书可以预防中间人攻击。
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config>
+        <domain includeSubdomains="true">example.com</domain>
+        <pin-set expiration="2018-01-01">
+            <pin digest="SHA-256">/558pd1Y5Vercv1ZoSqOrJWDsh9sTMEolM6T8csLucQ=</pin>
+            <pin digest="SHA-256">IQBnNBEiFuhj+8x6X8XLgh01V9Ic5/V3IRQLNFFc7v4=</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>
+```
+
+问题：在Android7以下如何固定证书来预防中间人攻击？
+解答：
+设置`OkhttpClient`的`certificatePinner`属性
+```java
+OkHttpClient.Builder okHttpClient = new OkHttpClient.Builder();
+okHttpClient.certificatePinner(new CertificatePinner.Builder()
+        .add("www.baidu.com", "/558pd1Y5Vercv1ZoSqOrJWDsh9sTMEolM6T8csLucQ=", "IQBnNBEiFuhj+8x6X8XLgh01V9Ic5/V3IRQLNFFc7v4=")
+        .build());
+```
+
+问题：那么如何获取固定证书的证书指纹digest呢？
+解答：
+1. `HttpsURLConnection`连接，利用`SHA-256`算法计算得出
+
+缺点：其中Base64不能使用Android自带的，需要自己进行Base64转换。
+```java
+@Test
+public void testPinDigest() {
+    try {
+        HttpsURLConnection connection = (HttpsURLConnection) new URL("https://www.baidu.com").openConnection();
+        connection.connect();
+        for (Certificate certificate : connection.getServerCertificates()) {
+            X509Certificate x509Certificate = (X509Certificate) certificate;
+            //拿到证书公钥
+            byte[] publicKey = x509Certificate.getPublicKey().getEncoded();
+            //SHA-256 加密算法
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] publicKeySha256 = digest.digest(publicKey);
+            String publicKeyShaBase64 = Base64.encode(publicKeySha256);
+            System.out.println("SHA256:" + publicKeyShaBase64);
+            connection.disconnect();
+        }
+    } catch (IOException | NoSuchAlgorithmException e) {
+        e.printStackTrace();
+    }
+}
+// ----- 输出 -----
+// SHA256:/558pd1Y5Vercv1ZoSqOrJWDsh9sTMEolM6T8csLucQ=
+// SHA256:IQBnNBEiFuhj+8x6X8XLgh01V9Ic5/V3IRQLNFFc7v4=
+```
+2. `HttpsURLConnection`连接，利用`OkHttp`的`CertificatePinner.pin(x509Certificate)`算法计算得出
+```java
+@Test
+public void testPinDigest() {
+    try {
+        HttpsURLConnection connection = (HttpsURLConnection) new URL("https://www.baidu.com").openConnection();
+        connection.connect();
+        for (Certificate certificate : connection.getServerCertificates()) {
+            X509Certificate x509Certificate = (X509Certificate) certificate;
+            System.out.println("OKHttpSHA256:" + CertificatePinner.pin(x509Certificate) );
+            connection.disconnect();
+        }
+    } catch (IOException | NoSuchAlgorithmException e) {
+        e.printStackTrace();
+    }
+}
+// ----- 输出 -----
+// OKHttpSHA256:sha256//558pd1Y5Vercv1ZoSqOrJWDsh9sTMEolM6T8csLucQ=
+// OKHttpSHA256:sha256/IQBnNBEiFuhj+8x6X8XLgh01V9Ic5/V3IRQLNFFc7v4=
+```
+
+### OkhttpClient.sslSocketFactory对特定证书信任
+
+```java
+    //设置信任证书，而不能直接信任所有证书
+    //将需要信任的证书加入到 信任证书库中
+    CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+    Certificate certificate =certificateFactory.generateCertificate(App.getInstance().getAssets().open("my_ca.pem"))
+
+    KeyStore serverKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+    serverKeyStore.load(null);
+    serverKeyStore.setCertificateEntry("ali",certificate);
+
+    TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+    trustManagerFactory.init(serverKeyStore);
+    TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();
+    X509TrustManager x509TrustManager = (X509TrustManager) trustManagers[0];
+
+    SSLContext sc = SSLContext.getInstance("TLS");
+    sc.init(null, new TrustManager[]{x509TrustManager}, null);
+    SSLSocketFactory ssfFactory = sc.getSocketFactory();
+
+    OkHttpClient.Builder client = new OkHttpClient.Builder()
+    client.sslSocketFactory(ssfFactory,x509TrustManager)
+```
+
+浏览器访问时，如果服务器没有下发中间证书，那么浏览器将会去下载这个中间证书，而app并没有这个操作，所以需要自己下载并将证书加入到信任证书库中。
+
+声明参考地址：
+- https://blog.csdn.net/Wen_Demo/article/details/51943201
