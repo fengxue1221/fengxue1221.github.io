@@ -1,0 +1,52 @@
+
+### 可以滑动的最小距离
+
+
+```java
+//认为开始滑动的最小距离
+int mTouchSlop = ViewConfiguration.get(context).getScaledPagingTouchSlop();
+//滑动的总距离
+getScrollY() || getScrollX()
+```
+
+```java
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        int action = event.getAction();
+        float y = event.getY();
+        switch (action){
+            case MotionEvent.ACTION_DOWN:
+                mLastY = y;
+                break;
+            case MotionEvent.ACTION_MOVE:
+                /**
+                 * 向上滑动，mLastY>y,则dy>0
+                 * 向下滑动，mLastY<y, 则dy<0
+                 */
+                float dy = mLastY -y;
+                // mTouchSlop为开始进行滑动的最小距离，ViewConfiguration.get(context).getScaledPagingTouchSlop()
+                // getScrollY 为到滑动的总距离，向上滑动，则>0; 向下滑动，则<0
+                // getScrollY 和 dy 是不一样的，dy是一次滑动移动的距离，而getScrollY是多次滑动的总距离，也时间view从初始值滑动到此时的总的移动距离
+                if(Math.abs(dy) > mTouchSlop){
+                    scrollBy(0,(int)dy);
+                }
+                mLastY = y;
+                break;
+        }
+
+        return super.onTouchEvent(event);
+    }
+
+    // canScrollVertically 代表View是否可以滑动，true为可滑动，false为不可滑动，
+    // canScrollVertically 参数>0为向上滑动，参数<0为向下滑动
+    private boolean isShowTop(float dy){
+        return dy <0 && getScrollY() > 0 && !canScrollVertically(-1);
+    }
+
+    scrollBy(0,(int)dy);//移动View
+
+    //顺畅滑动使用 OverScroller
+```
+
+getX()是表示Widget相对于自身左上角的x坐标。
+getRawX()是表示相对于屏幕左上角的x坐标值，这个屏幕左上角是手机屏幕左上角,不管activity是否有titleBar或是否全屏幕。
