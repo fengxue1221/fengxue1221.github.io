@@ -19,6 +19,7 @@
 
 
     //TODO 这里不懂为什么要进行判断
+    //边界检测, scrollTo向上滑y>0,向下滑y<0
     @Override
     public void scrollTo(int x, int y) {
         Log.i("onMeasure","y: " + y + ", getScrollY: " + getScrollY() + ", height: " + getHeight() + ", realHeight: " + realHeight+ ", -- " + (realHeight -getHeight()));
