@@ -1,0 +1,25 @@
+---
+layout: post
+title:  "UI相关工具类"
+description: UI相关工具类
+categories: android
+typora-root-url: ..
+---
+
+## ArgbEvaluator渐变色计算类
+
+```java
+  /**
+    * public Object evaluate(float fraction, Object startValue, Object endValue)
+    * fraction：渐变度，值在0-1之间
+    * startValue：起始颜色值
+    * endValue：最终颜色值
+    */
+private ArgbEvaluator argbEvaluator = new ArgbEvaluator();//渐变色计算类
+int color = (int) argbEvaluator.evaluate(dependency.getY() / parent.getHeight(), Color.RED, Color.BLUE);
+child.setBackgroundColor(color);
+```
+
+## ViewCompat
+
+ViewCompat类主要是用来提供兼容性的, 比如canScrollVertically方法, 在ViewCompat里面针对几个版本有不同的实现, 原理上还是根据版本判断, 有时甚至还要判断传入参数的类型. 但是要注意的是, ViewCompat仅仅让你调用不崩溃, 并不保证你调用的结果在不同版本的机器上一致.

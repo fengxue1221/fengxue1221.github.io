@@ -1,6 +1,12 @@
+---
+layout: post
+title:  "Scroll滑动相关知识点"
+description: Scroll滑动相关知识点
+categories: android
+typora-root-url: ..
+---
 
 ### 可以滑动的最小距离
-
 
 ```java
 //认为开始滑动的最小距离
@@ -50,3 +56,122 @@ getScrollY() || getScrollX()
 
 getX()是表示Widget相对于自身左上角的x坐标。
 getRawX()是表示相对于屏幕左上角的x坐标值，这个屏幕左上角是手机屏幕左上角,不管activity是否有titleBar或是否全屏幕。
+
+计算差值，最好用下面方式，对scrollBy使用比较友好。
+dx = lastX - currentX , dx>0：向左，dx<0：向右
+dy = lastY - currentY , dy>0: 向上，dy<0: 向下
+
+## 滑动在Android上的两种方式
+
+### 1. 显示（View内容）位置的改变
+
+scrollTo，scrollBy只是改变View的显示位置（内容），而不是真实的位置。
+如果是TextView，则移动的是文字，而TextView本身位置并没有改变。
+在scrollTo之后，会产生一个滑动值view.getScrollX(),表示该View相对于初始状态一共滑动了多少。有正负之分。
+getScrollX() >0：向左，<0：向右
+getScrollY() >0: 向上，<0: 向下
+
+ScrollTo 将 View 滑动到绝对位置，而ScrollBy 是对 ScrollTo 的简单封装，将 View 滑动到相对位置。
+
+```java
+/**
+ * scrollTo 在滚动过程中，不断记录将当前位置记录在 mScrollX 和 mScrollX，然后通过 
+ * postInvalidateOnAnimation 刷新显示位置。在此过程中，会不断调用 onScrollChanged，产生回调
+ */
+public void scrollTo(int x, int y) {
+    if (mScrollX != x || mScrollY != y) {
+        int oldX = mScrollX;
+        int oldY = mScrollY;
+        mScrollX = x;
+        mScrollY = y;
+        invalidateParentCaches();
+        onScrollChanged(mScrollX, mScrollY, oldX, oldY);
+        if (!awakenScrollBars()) {
+            postInvalidateOnAnimation();
+        }
+    }
+}
+// scrollBy 将本次滚动的相对值累加到 mScrollX 和 mScrollY
+public void scrollBy(int x, int y) {
+    scrollTo(mScrollX + x, mScrollY + y);
+}
+```
+
+### 2. 真实位置改变
+
+- offsetLeftAndRight、offsetTopAndButtom，自带刷新，不需要调用invalidate()
+- view.setLeft(left)、view.setRight(right)（属性动画同理）
+- LayoutParams
+这种方式将改变 View 的真实位置，底层调用 invalidate()，让 onDraw 方法被调用，view 将在新的位置重绘。通过 getLeft() 获取左边界和父容器的距离。
+
+ViewCompat.offsetTopAndBottom(view,offset);
+这里的offset正负与坐标轴是一致的，向下y为正，向右x为正。
+
+对ViewCompat.offsetTopAndBottom的一个应用实例：
+```java
+package com.fengxue.materialdesigntest.behavior.simple2;
+
+import android.content.Context;
+import android.util.AttributeSet;
+import android.view.View;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.view.ViewCompat;
+
+public class TextViewBehavior extends CoordinatorLayout.Behavior<TextView> {
+
+    private int mLayoutTop;
+    private int mOffsetTopAndBottom;//记录上次滚动的位置
+
+    public TextViewBehavior() {
+    }
+
+    public TextViewBehavior(Context context, AttributeSet attrs) {
+        super(context, attrs);
+    }
+
+    @Override
+    public boolean onLayoutChild(@NonNull CoordinatorLayout parent, @NonNull TextView child, int layoutDirection) {
+        parent.onLayoutChild(child, layoutDirection);
+        mLayoutTop = child.getTop();
+        return true;
+    }
+
+    @Override
+    public boolean onStartNestedScroll(@NonNull CoordinatorLayout coordinatorLayout, @NonNull TextView child, @NonNull View directTargetChild, @NonNull View target, int axes, int type) {
+        return true;
+    }
+
+    @Override
+    public void onNestedPreScroll(@NonNull CoordinatorLayout coordinatorLayout, @NonNull TextView child, @NonNull View target, int dx, int dy, @NonNull int[] consumed, int type) {
+        int consumedy = 0;//记录消费距离
+        int offset = mOffsetTopAndBottom - dy;//本次的移动的offset=上次移动的位置+新的移动距离（-dy）offset向上时为负
+        //可滚动的最顶端offset
+        int minOffset = -getHeaderScrollHeight(child);
+        //可滚动的最底端offset
+        int maxOffset = 0;
+        //防止消费过头
+        offset = offset < minOffset ? minOffset : (offset > maxOffset ? maxOffset : offset);
+        //距离有了，移动header
+        ViewCompat.offsetTopAndBottom(child, offset - (child.getTop() - mLayoutTop));
+        consumedy = mOffsetTopAndBottom - offset;
+        //记录这一次的offset位置
+        mOffsetTopAndBottom = offset;
+        consumed[1] = consumedy;
+    }
+
+    /**
+     * 头部可滚动的最大距离
+     *
+     * @return
+     */
+    private int getHeaderScrollHeight(View view) {
+        if (view == null) return 0;
+        return view.getHeight();
+    }
+}
+```
+
+![offset的理解](/assets/images/2020-08-11/offset的理解.png)

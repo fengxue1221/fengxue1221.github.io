@@ -1,0 +1,62 @@
+---
+layout: post
+title:  "自定义View"
+description: 自定义View
+categories: android
+typora-root-url: ..
+---
+
+## 自定义View流程
+
+![自定义View流程](/assets/images/2020-08-15/自定义View流程.png)
+
+自定义View主要实现：onMeasure + onDraw , 最主要是onDraw
+自定义ViewGroup主要实现：onMeasure + onLayout
+
+## 自定义View的构造函数
+
+```java
+// java代码里直接new时候使用
+public FlowLayout(Context context) {
+    super(context);
+}
+//xml解析-> LayoutInflater解析
+public FlowLayout(Context context, AttributeSet attrs) {
+    super(context, attrs);
+}
+//自定义style主题时
+public FlowLayout(Context context, AttributeSet attrs, int defStyleAttr) {
+    super(context, attrs, defStyleAttr);
+}
+//自定义属性时使用
+public FlowLayout(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
+    super(context, attrs, defStyleAttr, defStyleRes);
+}
+```
+自定义View至少实现3个构造函数。
+
+## onMeasure
+
+```java
+//设置自己的大小，同时保存起来
+setMeasuredDimension(getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec),
+                getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
+```
+
+测量主要是将xml中layout_width和layout_height变成具体值在onMeasure中使用。
+```xml
+android:layout_width="10dp"
+android:layout_height="warp_content"
+android:layout_width="match_parent"
+```
+
+问题1: LayoutParams是什么？与MeasureSpec有关系吗？
+
+问题2: 将xml中layout_width变成具体值，技术规则？
+
+问题3: MeasureSpec是什么？
+MeasureSpec是View的内部类，基本都是二进制运算，由于int是32位的，用高两位表示mode，低30位表示size，MODE_SHIFT=30的作用是移位。
+
+UNSPECIFIED: 不对View大小做限制，系统使用
+EXACTLY: 确切的大小，比如80dp
+AT_MOST: 大小不可超过某数值，如match_parent大小不能超过父View
