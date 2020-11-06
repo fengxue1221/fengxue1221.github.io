@@ -1,0 +1,73 @@
+---
+layout: post
+title:  "WebView相关知识"
+description: WebView相关知识
+categories: android
+typora-root-url: ..
+---
+
+WebView是一个基于webkit引擎、展现web页面的控件。
+Android的Webview在低版本和高版本采用了不同的webkit版本内核，4.4后直接使用了Chrome。
+
+WebView.loadUrl("http://www.baidu.com")
+WebView.loadUrl("https://www.baidu.com")
+
+在Android中WebView打开http会默认打开浏览器，需要设置打开方式。
+https可以直接在app内部打开。
+
+
+## 1. WebView状态
+
+```java
+//激活WebView为活跃状态，能正常执行网页的响应
+webView.onResume() ；
+//当页面被失去焦点被切换到后台不可见状态，需要执行onPause
+//通过onPause动作通知内核暂停所有的动作，比如DOM的解析、plugin的执行、JavaScript执行。webView.onPause()；
+//当应用程序(存在webview)被切换到后台时，这个方法不仅仅针对当前的webview而是全局的全应用程序的webview
+//它会暂停所有webview的layout，parsing，javascripttimer。降低CPU功耗。webView.pauseTimers()
+//恢复pauseTimers状态
+webView.resumeTimers()；
+//销毁Webview
+//在关闭了Activity时，如果Webview的音乐或视频，还在播放。就必须销毁Webview
+//但是注意：webview调用destory时,webview仍绑定在Activity上
+//这是由于自定义webview构建时传入了该Activity的context对象
+//因此需要先从父容器中移除webview,然后再销毁webview:
+rootLayout.removeView(webView); 
+webView.destroy();
+```
+
+## 前进/后退
+
+```java
+//是否可以后退
+Webview.canGoBack() 
+//后退网页
+Webview.goBack()
+
+//是否可以前进                     
+Webview.canGoForward()
+//前进网页
+Webview.goForward()
+
+//以当前的index为起始点前进或者后退到历史记录中指定的steps
+//如果steps为负数则为后退，正数则为前进
+Webview.goBackOrForward(intsteps)
+```
+
+常见用法：Back键控制网页后退
+
+问题：在不做任何处理前提下 ，浏览网页时点击系统的“Back”键,整个 Browser 会调用 finish()而结束自身
+
+目标：点击返回后，是网页回退而不是推出浏览器
+
+解决方案：在当前Activity中处理并消费掉该 Back 事件
+
+```java
+public boolean onKeyDown(int keyCode, KeyEvent event) {
+  if ((keyCode == KEYCODE_BACK) && mWebView.canGoBack()) { 
+    mWebView.goBack();
+    return true;
+  }
+  return super.onKeyDown(keyCode, event);
+}
+```
