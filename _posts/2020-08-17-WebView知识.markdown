@@ -71,3 +71,5 @@ public boolean onKeyDown(int keyCode, KeyEvent event) {
   return super.onKeyDown(keyCode, event);
 }
 ```
+
+解决白屏：参考https://tech.youzan.com/you-zan-webview-goldwing-three/
